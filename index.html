@@ -386,6 +386,10 @@
     <span>для тебя</span>
   </div>
 
+  <!-- Свой файл рядом со страницей: без рекламы, без чужих плееров,
+       без блокировок и с точной синхронизацией строчек. -->
+  <audio id="snd" src="sorry.mp3" preload="auto"></audio>
+
   <div class="art" id="art">
     <div id="yt"></div>
     <div class="art__cover" aria-hidden="true"></div>
@@ -496,6 +500,8 @@
   var playBtn = document.getElementById("play");
   var seekArea = document.getElementById("seek");
   var host = document.getElementById("yt");
+  var snd = document.getElementById("snd");
+  var haveAudio = false;            // свой файл доступен и готов играть
 
   var PLAY_PATH = "M8 5v14l11-7z";
   var PAUSE_PATH = "M7 5h3.5v14H7zm6.5 0H17v14h-3.5z";
@@ -516,9 +522,7 @@
   }
 
   function now() {
-    if (!dragging && player && player.getCurrentTime) {
-      try { return player.getCurrentTime(); } catch (e) {}
-    }
+    if (haveAudio) return snd.currentTime;
     return offset + (playing && !dragging ? (Date.now() - startedAt) / 1000 : 0);
   }
 
@@ -589,16 +593,18 @@
 
   function toggle() {
     if (playing) {
-      if (player && player.pauseVideo) { player.pauseVideo(); }
+      if (haveAudio) { snd.pause(); }
       else if (plain) { unembed(); }
       stop();
       paint();
       return;
     }
-    if (player && player.playVideo) {
-      player.playVideo();
+    if (haveAudio) {
+      snd.play().catch(function () {
+        hint.textContent = "Браузер не дал включить звук — нажми ещё раз";
+      });
     } else {
-      embed(now());          // вставка происходит внутри касания — звук разрешён
+      embed(now());          // запасной путь: чужой плеер, вставка внутри касания
     }
     start();
   }
@@ -613,11 +619,12 @@
     t = Math.min(Math.max(0, t), DURATION);
     offset = t;
     startedAt = Date.now();
-    if (player && player.seekTo) player.seekTo(t, true);
+    if (haveAudio) { try { snd.currentTime = t; } catch (e) {} }
     paint();
     ensureLoop();
   }
   function commitSeek() {
+    if (haveAudio) return;         // своему файлу переустановка не нужна
     if (!plain || !playing) return;
     clearTimeout(reinject);
     reinject = setTimeout(function () { embed(now()); }, 250);
@@ -651,6 +658,23 @@
     if (e.key === "ArrowRight") { seekTo(now() + 5); commitSeek(); e.preventDefault(); }
     if (e.key === "ArrowLeft")  { seekTo(now() - 5); commitSeek(); e.preventDefault(); }
   });
+
+  /* ---- свой файл: если он лежит рядом, всё управление идёт через него ---- */
+  snd.addEventListener("loadedmetadata", function () {
+    haveAudio = true;
+    if (snd.duration > 0) {
+      DURATION = snd.duration;
+      document.getElementById("dur").textContent = fmt(snd.duration);
+    }
+    diag.textContent = "";
+  });
+  snd.addEventListener("error", function () {
+    haveAudio = false;             // файла нет — остаётся запасной плеер
+    diag.textContent = "";
+  });
+  snd.addEventListener("ended", function () { stop(); paint(); });
+  snd.addEventListener("play", function () { if (!playing) start(); });
+  snd.addEventListener("pause", function () { if (playing) { stop(); paint(); } });
 
   document.getElementById("yes").addEventListener("click", function () {
     var f = document.getElementById("finale");
