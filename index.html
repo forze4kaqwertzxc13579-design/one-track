@@ -406,7 +406,7 @@
         <div class="progress__fill" id="fill"><span class="progress__knob"></span></div>
       </div>
     </div>
-    <div class="progress__times"><span id="cur">0:00</span><span id="dur">3:26</span></div>
+    <div class="progress__times"><span id="cur">0:00</span><span id="dur">3:25</span></div>
   </div>
 
   <div class="controls">
@@ -425,8 +425,8 @@
   <p class="diag" id="diag"></p>
 
   <div class="links">
-    <a class="chip" href="https://open.spotify.com/track/09CtPGIpYB4BrO8qb1RGsF" target="_blank" rel="noopener">Открыть в Spotify</a>
-    <a class="chip" href="https://music.apple.com/album/sorry/1440829390?i=1440830251" target="_blank" rel="noopener">Apple Music</a>
+    <a class="chip" href="https://music.yandex.ru/search?text=justin%20bieber%20sorry" target="_blank" rel="noopener">Яндекс Музыка</a>
+    <a class="chip" href="https://open.spotify.com/track/09CtPGIpYB4BrO8qb1RGsF" target="_blank" rel="noopener">Spotify</a>
   </div>
 
   <!-- ЗАМЕНИ: строки под свою ситуацию. data-t — секунда, на которой строка загорается -->
@@ -480,8 +480,10 @@
           с нужной секунды. Внешние скрипты для этого не нужны вообще.
      --------------------------------------------------------- */
 
-  var VIDEO = "fRh_vgS2dFE";          // запись, которая точно играет
-  var DURATION = 206;                 // длина трека в секундах
+  /* Rutube вместо YouTube: он открывается в России без VPN и без входа в аккаунт.
+     Проверено на этой машине — ютубовский домен тут не резолвится вообще. */
+  var VIDEO = "8ba81b0c421594b319e7ad8688d3fd36";
+  var DURATION = 205;                 // длина ролика в секундах
 
   var lines = Array.prototype.slice.call(document.querySelectorAll(".lyrics p"));
   var fill = document.getElementById("fill");
@@ -557,8 +559,8 @@
     plain = true;
     art.classList.add("is-raw");
     host.innerHTML =
-      '<iframe src="https://www.youtube.com/embed/' + VIDEO +
-      '?autoplay=1&playsinline=1&rel=0&start=' + Math.floor(at) +
+      '<iframe src="https://rutube.ru/play/embed/' + VIDEO +
+      '/?autoplay=1&t=' + Math.floor(at) +
       '" allow="autoplay; encrypted-media" allowfullscreen frameborder="0"></iframe>';
     hint.textContent = "Тихо? Нажми ▶ на самой обложке — это кнопка плеера";
     diag.textContent = "";
