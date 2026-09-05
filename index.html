@@ -1,0 +1,484 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#07070A">
+<meta name="color-scheme" content="dark">
+<title>Сейчас играет</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
+
+<style>
+  /* =========================================================
+     Экран «сейчас играет»: чёрный фон, цветовое свечение
+     от обложки, крупная лирика с подсветкой строки.
+     Одна тема, всё красится явно.
+     ========================================================= */
+  :root {
+    --bg:      #07070A;
+    --panel:   #131318;
+    --txt:     #FFFFFF;
+    --dim:     rgba(255,255,255,.45);
+    --dimmer:  rgba(255,255,255,.22);
+    --line:    rgba(255,255,255,.12);
+    --pink:    #FF3B6B;
+    --violet:  #8A5CF6;
+
+    --ui: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--txt);
+    font-family: var(--ui);
+    font-size: 1rem;
+    line-height: 1.5;
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* свечение от «обложки» */
+  .bloom {
+    position: fixed;
+    inset: -20% -20% auto -20%;
+    height: 70vh;
+    background:
+      radial-gradient(45% 55% at 30% 20%, rgba(255,59,107,.38), transparent 70%),
+      radial-gradient(45% 55% at 75% 30%, rgba(138,92,246,.34), transparent 70%);
+    filter: blur(40px);
+    pointer-events: none;
+    z-index: 0;
+    transition: opacity 1.2s ease;
+  }
+
+  .app {
+    position: relative;
+    z-index: 1;
+    max-width: 30rem;
+    margin-inline: auto;
+    padding: 1.25rem 1.25rem 6rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+
+  h1, h2 { margin: 0; font-weight: 700; letter-spacing: -0.02em; line-height: 1.15; text-wrap: balance; }
+  p { margin: 0; }
+
+  .topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: .6875rem;
+    font-weight: 600;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--dim);
+  }
+
+  /* ---------- обложка ---------- */
+  .art {
+    position: relative;
+    width: min(74vw, 17rem);
+    aspect-ratio: 1;
+    margin-inline: auto;
+    border-radius: 14px;
+    background: linear-gradient(150deg, var(--pink), var(--violet));
+    box-shadow: 0 28px 60px -20px rgba(255,59,107,.55);
+    display: grid;
+    place-items: center;
+    overflow: hidden;
+    transform: scale(.94);
+    transition: transform .7s cubic-bezier(.2,.8,.2,1), box-shadow .7s ease;
+  }
+  .art.is-playing { transform: scale(1); }
+  .art__word {
+    font-size: clamp(2.4rem, 12vw, 3.4rem);
+    font-weight: 800;
+    letter-spacing: -0.05em;
+    color: #fff;
+    mix-blend-mode: overlay;
+  }
+  .art__sub {
+    position: absolute;
+    bottom: .9rem;
+    font-size: .625rem;
+    font-weight: 600;
+    letter-spacing: .28em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,.75);
+  }
+
+  /* ---------- метаданные и прогресс ---------- */
+  .meta { display: flex; flex-direction: column; gap: .15rem; text-align: center; }
+  .meta__title { font-size: 1.375rem; font-weight: 700; letter-spacing: -0.02em; }
+  .meta__artist { color: var(--dim); font-size: 1rem; }
+
+  .progress { display: flex; flex-direction: column; gap: .4rem; }
+  .progress__track {
+    height: 4px;
+    border-radius: 999px;
+    background: rgba(255,255,255,.16);
+    overflow: hidden;
+  }
+  .progress__fill {
+    height: 100%;
+    width: 0%;
+    border-radius: 999px;
+    background: var(--txt);
+  }
+  .progress__times {
+    display: flex;
+    justify-content: space-between;
+    font-size: .6875rem;
+    font-variant-numeric: tabular-nums;
+    color: var(--dim);
+  }
+
+  /* ---------- управление ---------- */
+  .controls { display: flex; align-items: center; justify-content: center; gap: 1.75rem; }
+  .ctl {
+    background: none;
+    border: 0;
+    padding: .5rem;
+    color: var(--dimmer);
+    cursor: default;
+    display: grid;
+    place-items: center;
+  }
+  .play {
+    width: 4.25rem;
+    height: 4.25rem;
+    border-radius: 50%;
+    border: 0;
+    background: var(--txt);
+    color: #000;
+    cursor: pointer;
+    display: grid;
+    place-items: center;
+    box-shadow: 0 10px 30px -10px rgba(255,255,255,.5);
+    transition: transform .18s ease;
+  }
+  .play:active { transform: scale(.93); }
+  .play:focus-visible { outline: 2px solid var(--pink); outline-offset: 4px; }
+
+  .hint {
+    text-align: center;
+    font-size: .8125rem;
+    color: var(--dim);
+    min-height: 1.4em;
+  }
+
+  .links { display: flex; gap: .5rem; justify-content: center; flex-wrap: wrap; }
+  .chip {
+    font-size: .75rem;
+    font-weight: 600;
+    letter-spacing: .02em;
+    padding: .55rem 1rem;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: rgba(255,255,255,.05);
+    color: var(--txt);
+    text-decoration: none;
+  }
+  .chip:active { background: rgba(255,255,255,.12); }
+
+  /* ---------- лирика ---------- */
+  .lyrics {
+    position: relative;
+    border-top: 1px solid var(--line);
+    padding-top: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    max-height: 26rem;
+    overflow-y: auto;
+    scroll-behavior: smooth;
+    scrollbar-width: none;
+    -webkit-mask-image: linear-gradient(180deg, transparent, #000 12%, #000 82%, transparent);
+            mask-image: linear-gradient(180deg, transparent, #000 12%, #000 82%, transparent);
+  }
+  .lyrics::-webkit-scrollbar { display: none; }
+  .lyrics p {
+    font-size: 1.5rem;
+    font-weight: 700;
+    letter-spacing: -0.025em;
+    line-height: 1.25;
+    color: var(--dimmer);
+    transform-origin: left center;
+    transition: color .45s ease, transform .45s cubic-bezier(.2,.8,.2,1), opacity .45s ease;
+  }
+  .lyrics p.done { color: var(--dim); }
+  .lyrics p.now { color: var(--txt); transform: scale(1.035); }
+  .lyrics p.small { font-size: 1.0625rem; font-weight: 500; color: var(--dim); }
+  .lyrics p.small.now { color: var(--txt); }
+
+  /* ---------- финальный блок ---------- */
+  .ask { display: flex; flex-direction: column; gap: .75rem; border-top: 1px solid var(--line); padding-top: 1.75rem; }
+  .btn {
+    font-family: var(--ui);
+    font-size: 1rem;
+    font-weight: 600;
+    min-height: 3.25rem;
+    width: 100%;
+    border-radius: 14px;
+    border: 1px solid transparent;
+    background: var(--pink);
+    color: #fff;
+    cursor: pointer;
+    transition: transform .16s ease, background-color .3s ease;
+  }
+  .btn:active { transform: scale(.985); }
+  .btn:focus-visible { outline: 2px solid var(--txt); outline-offset: 3px; }
+  .btn--ghost { background: rgba(255,255,255,.07); border-color: var(--line); color: var(--txt); }
+
+  .reply { font-size: .9375rem; color: var(--dim); min-height: 1.4em; text-align: center; }
+
+  .card {
+    border-radius: 18px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: .85rem;
+    animation: rise .7s cubic-bezier(.2,.8,.2,1) both;
+  }
+  @keyframes rise { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+  .card h2 { font-size: 1.3rem; }
+  .card p { color: var(--dim); }
+  .card .kiss { color: var(--pink); font-weight: 600; }
+
+  footer {
+    text-align: center;
+    font-size: .6875rem;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--dimmer);
+  }
+
+  /* плеер живёт за пределами экрана: скрывать его через display:none нельзя,
+     иначе часть браузеров отказывается отдавать звук */
+  #yt { position: fixed; left: -9999px; top: 0; width: 320px; height: 180px; border: 0; }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation-duration: .001ms !important; transition-duration: .001ms !important; }
+    .lyrics { scroll-behavior: auto; }
+  }
+</style>
+
+</head>
+<body>
+<div class="bloom" id="bloom" aria-hidden="true"></div>
+
+<main class="app">
+
+  <div class="topbar">
+    <span>Сейчас играет</span>
+    <!-- ЗАМЕНИ: имя -->
+    <span>для тебя</span>
+  </div>
+
+  <div class="art" id="art">
+    <span class="art__word">SORRY</span>
+    <span class="art__sub">одно сообщение</span>
+  </div>
+
+  <div class="meta">
+    <p class="meta__title">Sorry</p>
+    <p class="meta__artist">Justin Bieber · и я</p>
+  </div>
+
+  <div class="progress">
+    <div class="progress__track"><div class="progress__fill" id="fill"></div></div>
+    <div class="progress__times"><span id="cur">0:00</span><span id="dur">3:20</span></div>
+  </div>
+
+  <div class="controls">
+    <button class="ctl" tabindex="-1" aria-hidden="true">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M6 5h2v14H6zm12 0v14l-9-7z"/></svg>
+    </button>
+    <button class="play" id="play" aria-label="Включить">
+      <svg id="icon" width="30" height="30" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+    </button>
+    <button class="ctl" tabindex="-1" aria-hidden="true">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M18 5h-2v14h2zM6 5v14l9-7z"/></svg>
+    </button>
+  </div>
+
+  <p class="hint" id="hint">Нажми ▶ — дальше я всё сказал внутри</p>
+
+  <div class="links">
+    <a class="chip" href="https://open.spotify.com/track/09CtPGIpYB4BrO8qb1RGsF" target="_blank" rel="noopener">Открыть в Spotify</a>
+    <a class="chip" href="https://music.apple.com/album/sorry/1440829390?i=1440830251" target="_blank" rel="noopener">Apple Music</a>
+  </div>
+
+  <!-- ЗАМЕНИ: строки под свою ситуацию. data-t — секунда, на которой строка загорается -->
+  <section class="lyrics" id="lyrics">
+    <p data-t="2">Привет.</p>
+    <p data-t="7">Знаю, ты сейчас злишься на меня.</p>
+    <p data-t="13">И правильно делаешь.</p>
+    <p data-t="19">Я накосячил.</p>
+    <p data-t="25" class="small">И не собираюсь это как-то красиво объяснять.</p>
+    <p data-t="32">Я был неправ.</p>
+    <p data-t="38">Мне правда жаль.</p>
+    <p data-t="45" class="small">Жаль не потому, что ты обиделась.</p>
+    <p data-t="51" class="small">А потому, что обидел тебя я.</p>
+    <p data-t="58">Это разные вещи.</p>
+    <p data-t="65">Ты важнее любого спора.</p>
+    <p data-t="72">Важнее того, кто там был прав.</p>
+    <p data-t="79" class="small">Я это понял ровно в ту секунду, когда ты замолчала.</p>
+    <p data-t="88">Да, я включил тебе Бибера.</p>
+    <p data-t="94" class="small">Дожил, знаю.</p>
+    <p data-t="100" class="small">Просто он это сказал раньше меня и громче.</p>
+    <p data-t="108">Но скажу и я, своими словами:</p>
+    <p data-t="115">Прости меня.</p>
+    <p data-t="122">Пожалуйста.</p>
+    <p data-t="130" class="small">Я подожду столько, сколько нужно.</p>
+  </section>
+
+  <section class="ask">
+    <button class="btn" id="yes">Ладно, прощаю</button>
+    <button class="btn btn--ghost" id="wait">Мне нужно время</button>
+    <p class="reply" id="reply"></p>
+  </section>
+
+  <section id="finale" hidden>
+    <div class="card">
+      <!-- ЗАМЕНИ: финальные слова -->
+      <h2>Спасибо. Правда.</h2>
+      <p>Обещаю: в следующий раз сначала выслушаю, а потом уже открою рот. И сегодня вечер полностью твой — фильм, еда, место, всё выбираешь ты.</p>
+      <p class="kiss">люблю тебя</p>
+    </div>
+  </section>
+
+  <footer>трек 1 из 1 · собрано вручную</footer>
+</main>
+
+<div id="yt"></div>
+
+<script>
+  var DURATION = 200;                 // длина трека в секундах
+  var lines = Array.prototype.slice.call(document.querySelectorAll(".lyrics p"));
+  var fill = document.getElementById("fill");
+  var cur = document.getElementById("cur");
+  var hint = document.getElementById("hint");
+  var art = document.getElementById("art");
+  var box = document.getElementById("lyrics");
+  var icon = document.getElementById("icon");
+  var playBtn = document.getElementById("play");
+
+  var PLAY_PATH = "M8 5v14l11-7z";
+  var PAUSE_PATH = "M7 5h3.5v14H7zm6.5 0H17v14h-3.5z";
+
+  var player = null;                  // плеер YouTube, если платформа его пустила
+  var playing = false;
+  var startedAt = 0;                  // отсчёт своими силами, если плеера нет
+  var offset = 0;
+  var active = -1;
+
+  function fmt(s) {
+    s = Math.max(0, Math.floor(s));
+    return Math.floor(s / 60) + ":" + ("0" + (s % 60)).slice(-2);
+  }
+
+  function now() {
+    if (player && player.getCurrentTime) { try { return player.getCurrentTime(); } catch (e) {} }
+    return offset + (playing ? (Date.now() - startedAt) / 1000 : 0);
+  }
+
+  function paint() {
+    var t = now();
+    fill.style.width = Math.min(100, (t / DURATION) * 100) + "%";
+    cur.textContent = fmt(t);
+
+    var idx = -1;
+    for (var i = 0; i < lines.length; i++) {
+      if (t >= parseFloat(lines[i].dataset.t)) idx = i;
+    }
+    if (idx !== active) {
+      active = idx;
+      lines.forEach(function (el, i) {
+        el.classList.toggle("now", i === active);
+        el.classList.toggle("done", i < active);
+      });
+      if (active >= 0) {
+        var el = lines[active];
+        box.scrollTo({ top: el.offsetTop - box.clientHeight / 2 + el.clientHeight / 2, behavior: "smooth" });
+      }
+    }
+    if (playing) requestAnimationFrame(paint);
+  }
+
+  function start() {
+    playing = true;
+    startedAt = Date.now();
+    art.classList.add("is-playing");
+    icon.setAttribute("d", PAUSE_PATH);
+    playBtn.setAttribute("aria-label", "Пауза");
+    hint.textContent = player ? "" : "Звук — по кнопке Spotify или Apple Music выше";
+    requestAnimationFrame(paint);
+  }
+
+  function stop() {
+    offset = now();
+    playing = false;
+    art.classList.remove("is-playing");
+    icon.setAttribute("d", PLAY_PATH);
+    playBtn.setAttribute("aria-label", "Включить");
+  }
+
+  playBtn.addEventListener("click", function () {
+    if (playing) {
+      if (player && player.pauseVideo) player.pauseVideo();
+      stop();
+    } else {
+      if (player && player.playVideo) player.playVideo();
+      start();
+    }
+  });
+
+  /* Пробуем поднять настоящий плеер YouTube. На платформе артефактов
+     внешний скрипт режется политикой безопасности — тогда работает
+     таймлайн без звука, а трек открывается по ссылке. */
+  window.onYouTubeIframeAPIReady = function () {
+    player = new YT.Player("yt", {
+      videoId: "fRh_vgS2dFE",
+      playerVars: { playsinline: 1, controls: 0, rel: 0 },
+      events: {
+        onReady: function () {
+          var d = player.getDuration && player.getDuration();
+          if (d > 0) { DURATION = d; document.getElementById("dur").textContent = fmt(d); }
+          hint.textContent = "Нажми ▶ — дальше я всё сказал внутри";
+        },
+        onStateChange: function (e) {
+          if (e.data === 1 && !playing) start();
+          if (e.data === 2 && playing) stop();
+        }
+      }
+    });
+  };
+  var s = document.createElement("script");
+  s.src = "https://www.youtube.com/iframe_api";
+  document.head.appendChild(s);
+
+  document.getElementById("yes").addEventListener("click", function () {
+    var f = document.getElementById("finale");
+    document.getElementById("reply").textContent = "";
+    f.hidden = false;
+    f.scrollIntoView({ behavior: "smooth", block: "center" });
+  });
+
+  document.getElementById("wait").addEventListener("click", function () {
+    document.getElementById("reply").textContent = "Хорошо. Я никуда не денусь.";
+  });
+</script>
+</body>
+</html>
