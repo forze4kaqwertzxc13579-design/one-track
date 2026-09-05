@@ -258,6 +258,15 @@
     min-height: 1.4em;
   }
 
+  .diag {
+    text-align: center;
+    font-size: .625rem;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--dimmer);
+    min-height: 1em;
+  }
+
   .links { display: flex; gap: .5rem; justify-content: center; flex-wrap: wrap; }
   .chip {
     font-size: .75rem;
@@ -404,6 +413,7 @@
   </div>
 
   <p class="hint" id="hint">Нажми ▶ — дальше я всё сказал внутри</p>
+  <p class="diag" id="diag"></p>
 
   <div class="links">
     <a class="chip" href="https://open.spotify.com/track/09CtPGIpYB4BrO8qb1RGsF" target="_blank" rel="noopener">Открыть в Spotify</a>
@@ -467,6 +477,7 @@
   var PAUSE_PATH = "M7 5h3.5v14H7zm6.5 0H17v14h-3.5z";
 
   var seekArea = document.getElementById("seek");
+  var diag = document.getElementById("diag");
 
   var player = null;                  // плеер YouTube, если платформа его пустила
   var playing = false;
@@ -611,9 +622,14 @@
     document.querySelector(".links").classList.add("links--urgent");
   }
 
+  /* Список запасных записей трека. Первый — проверенный, он точно играет.
+     Если лейбл запретил встраивание конкретной записи, плеер сам берёт следующую. */
+  var VIDEOS = ["fRh_vgS2dFE", "v16qZcBllUU"];
+  var vIndex = 0;
+
   window.onYouTubeIframeAPIReady = function () {
     player = new YT.Player("yt", {
-      videoId: "v16qZcBllUU",       /* «Justin Bieber - Topic» — чистая аудиодорожка */
+      videoId: VIDEOS[vIndex],
       playerVars: {
         playsinline: 1,
         controls: 0,
@@ -629,20 +645,33 @@
           hint.textContent = "Нажми ▶ — дальше я всё сказал внутри";
         },
         onStateChange: function (e) {
+          var names = { "-1": "готов", "0": "кончился", "1": "играет", "2": "пауза", "3": "загружает", "5": "готов" };
+          diag.textContent = "плеер: " + (names[String(e.data)] || e.data);
           if (e.data === 1) { everPlayed = true; if (!playing) start(); }
+          if (e.data === 3) return;                /* буферизация — это ещё не пауза */
           if (e.data === 2 && playing) { stop(); paint(); }
           if (e.data === 0) { stop(); paint(); }   /* трек кончился */
         },
-        onError: function () {
+        onError: function (e) {
+          /* 101 и 150 — владелец запретил встраивание этой записи. Берём следующую. */
+          if (vIndex + 1 < VIDEOS.length) {
+            vIndex++;
+            diag.textContent = "запись " + vIndex + " не пустили (код " + e.data + "), пробую следующую";
+            player.loadVideoById(VIDEOS[vIndex]);
+            if (playing) player.playVideo();
+            return;
+          }
           player = null;
-          noSound("YouTube не пустил клип внутрь страницы. Включи трек кнопкой ниже 👇");
+          stop();
+          diag.textContent = "код ошибки YouTube: " + e.data;
+          noSound("YouTube не пустил трек внутрь страницы. Включи его кнопкой ниже 👇");
         }
       }
     });
   };
   var s = document.createElement("script");
   s.src = "https://www.youtube.com/iframe_api";
-  s.onerror = function () { player = null; };
+  s.onerror = function () { player = null; diag.textContent = "плеер: не загрузился"; };
   document.head.appendChild(s);
 
   document.getElementById("yes").addEventListener("click", function () {
