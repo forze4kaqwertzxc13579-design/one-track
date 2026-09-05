@@ -101,16 +101,31 @@
   }
   .art.is-playing { transform: scale(1); }
 
-  /* Клип и есть обложка: 16:9 обрезается по краям до квадрата.
-     Прятать плеер за экран нельзя — мобильные браузеры тогда не отдают звук. */
+  /* Плеер лежит под обложкой во всю её площадь. Его нельзя прятать
+     (скрытому видео мобильные браузеры не дают звук), но можно накрыть
+     непрозрачным слоем — тогда ни одной плашки YouTube не видно. */
   #yt {
     position: absolute;
-    top: 0;
-    left: 50%;
-    width: 178%;
+    inset: 0;
+    width: 100%;
     height: 100%;
-    transform: translateX(-50%);
     border: 0;
+    z-index: 0;
+    pointer-events: none;
+  }
+  .art__cover {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    background: linear-gradient(150deg, var(--pink), var(--violet));
+    display: grid;
+    place-items: center;
+    cursor: pointer;               /* слой ловит все касания, до YouTube они не доходят */
+  }
+  .art.is-playing .art__cover { animation: breathe 4.5s ease-in-out infinite; }
+  @keyframes breathe {
+    0%, 100% { filter: saturate(1) brightness(1); }
+    50%      { filter: saturate(1.25) brightness(1.12); }
   }
   .art__word, .art__sub {
     position: relative;
@@ -135,26 +150,72 @@
     color: rgba(255,255,255,.85);
     text-shadow: 0 1px 12px rgba(0,0,0,.5);
   }
-  .art.is-playing .art__word, .art.is-playing .art__sub { opacity: 0; }
+  .art.is-playing .art__sub { opacity: 0; }
+
+  /* эквалайзер вместо подписи, пока играет */
+  .eq {
+    position: absolute;
+    bottom: 1rem;
+    z-index: 2;
+    display: flex;
+    align-items: flex-end;
+    gap: 4px;
+    height: 18px;
+    opacity: 0;
+    transition: opacity .5s ease;
+    pointer-events: none;
+  }
+  .art.is-playing .eq { opacity: 1; }
+  .eq span {
+    width: 3px;
+    border-radius: 2px;
+    background: rgba(255,255,255,.9);
+    animation: bounce 1s ease-in-out infinite;
+  }
+  .eq span:nth-child(1) { height: 40%; animation-delay: -.2s; }
+  .eq span:nth-child(2) { height: 90%; animation-delay: -.6s; }
+  .eq span:nth-child(3) { height: 60%; animation-delay: -.4s; }
+  .eq span:nth-child(4) { height: 100%; animation-delay: -.8s; }
+  @keyframes bounce { 0%, 100% { transform: scaleY(.35); } 50% { transform: scaleY(1); } }
 
   /* ---------- метаданные и прогресс ---------- */
   .meta { display: flex; flex-direction: column; gap: .15rem; text-align: center; }
   .meta__title { font-size: 1.375rem; font-weight: 700; letter-spacing: -0.02em; }
   .meta__artist { color: var(--dim); font-size: 1rem; }
 
-  .progress { display: flex; flex-direction: column; gap: .4rem; }
+  .progress { display: flex; flex-direction: column; gap: .1rem; }
+  .progress__area {
+    padding: .75rem 0;             /* запас под палец, сама полоска тонкая */
+    cursor: pointer;
+    touch-action: none;            /* иначе жест перехватывает прокрутка страницы */
+  }
   .progress__track {
+    position: relative;
     height: 4px;
     border-radius: 999px;
-    background: rgba(255,255,255,.16);
-    overflow: hidden;
+    background: rgba(255,255,255,.18);
   }
   .progress__fill {
+    position: relative;
     height: 100%;
     width: 0%;
     border-radius: 999px;
     background: var(--txt);
   }
+  .progress__knob {
+    position: absolute;
+    right: -7px;
+    top: 50%;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--txt);
+    transform: translateY(-50%);
+    box-shadow: 0 2px 10px rgba(0,0,0,.6);
+    transition: transform .15s ease;
+  }
+  .progress__area.is-dragging .progress__knob { transform: translateY(-50%) scale(1.35); }
+  .progress__area:focus-visible { outline: 2px solid var(--pink); outline-offset: 6px; border-radius: 999px; }
   .progress__times {
     display: flex;
     justify-content: space-between;
@@ -309,8 +370,10 @@
 
   <div class="art" id="art">
     <div id="yt"></div>
+    <div class="art__cover" aria-hidden="true"></div>
     <span class="art__word">SORRY</span>
     <span class="art__sub">одно сообщение</span>
+    <span class="eq" aria-hidden="true"><span></span><span></span><span></span><span></span></span>
   </div>
 
   <div class="meta">
@@ -319,8 +382,13 @@
   </div>
 
   <div class="progress">
-    <div class="progress__track"><div class="progress__fill" id="fill"></div></div>
-    <div class="progress__times"><span id="cur">0:00</span><span id="dur">3:20</span></div>
+    <div class="progress__area" id="seek" role="slider" tabindex="0"
+         aria-label="Перемотка" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+      <div class="progress__track">
+        <div class="progress__fill" id="fill"><span class="progress__knob"></span></div>
+      </div>
+    </div>
+    <div class="progress__times"><span id="cur">0:00</span><span id="dur">3:26</span></div>
   </div>
 
   <div class="controls">
@@ -398,11 +466,15 @@
   var PLAY_PATH = "M8 5v14l11-7z";
   var PAUSE_PATH = "M7 5h3.5v14H7zm6.5 0H17v14h-3.5z";
 
+  var seekArea = document.getElementById("seek");
+
   var player = null;                  // плеер YouTube, если платформа его пустила
   var playing = false;
   var startedAt = 0;                  // отсчёт своими силами, если плеера нет
   var offset = 0;
   var active = -1;
+  var dragging = false;
+  var looping = false;
 
   function fmt(s) {
     s = Math.max(0, Math.floor(s));
@@ -410,14 +482,19 @@
   }
 
   function now() {
-    if (player && player.getCurrentTime) { try { return player.getCurrentTime(); } catch (e) {} }
-    return offset + (playing ? (Date.now() - startedAt) / 1000 : 0);
+    /* пока тянут ползунок, время берём своё — иначе плеер дёргает картинку назад */
+    if (!dragging && player && player.getCurrentTime) {
+      try { return player.getCurrentTime(); } catch (e) {}
+    }
+    return offset + (playing && !dragging ? (Date.now() - startedAt) / 1000 : 0);
   }
 
   function paint() {
-    var t = now();
-    fill.style.width = Math.min(100, (t / DURATION) * 100) + "%";
+    var t = Math.min(now(), DURATION);
+    var pct = Math.min(100, (t / DURATION) * 100);
+    fill.style.width = pct + "%";
     cur.textContent = fmt(t);
+    seekArea.setAttribute("aria-valuenow", Math.round(pct));
 
     var idx = -1;
     for (var i = 0; i < lines.length; i++) {
@@ -434,7 +511,15 @@
         box.scrollTo({ top: el.offsetTop - box.clientHeight / 2 + el.clientHeight / 2, behavior: "smooth" });
       }
     }
-    if (playing) requestAnimationFrame(paint);
+  }
+
+  /* один цикл отрисовки на всё приложение */
+  function loop() {
+    paint();
+    if (playing) { requestAnimationFrame(loop); } else { looping = false; }
+  }
+  function ensureLoop() {
+    if (!looping && playing) { looping = true; requestAnimationFrame(loop); }
   }
 
   function start() {
@@ -445,7 +530,7 @@
     playBtn.setAttribute("aria-label", "Пауза");
     if (player) { hint.textContent = ""; }
     else { noSound("Звук — кнопкой Spotify или Apple Music 👇"); }
-    requestAnimationFrame(paint);
+    ensureLoop();
   }
 
   function stop() {
@@ -456,10 +541,11 @@
     playBtn.setAttribute("aria-label", "Включить");
   }
 
-  playBtn.addEventListener("click", function () {
+  function toggle() {
     if (playing) {
       if (player && player.pauseVideo) player.pauseVideo();
       stop();
+      paint();
       return;
     }
     if (player && player.playVideo) {
@@ -470,6 +556,48 @@
       }, 2000);
     }
     start();
+  }
+  playBtn.addEventListener("click", toggle);
+  art.addEventListener("click", toggle);   /* по обложке тоже можно */
+
+  /* ---- перемотка: тянем ползунок пальцем или мышью ---- */
+  function seekTo(t) {
+    t = Math.min(Math.max(0, t), DURATION);
+    offset = t;
+    startedAt = Date.now();
+    if (player && player.seekTo) player.seekTo(t, true);
+    paint();
+    ensureLoop();
+  }
+
+  function ratioAt(clientX) {
+    var r = seekArea.getBoundingClientRect();
+    return Math.min(1, Math.max(0, (clientX - r.left) / r.width));
+  }
+
+  seekArea.addEventListener("pointerdown", function (e) {
+    dragging = true;
+    seekArea.classList.add("is-dragging");
+    seekArea.setPointerCapture(e.pointerId);
+    seekTo(ratioAt(e.clientX) * DURATION);
+  });
+  seekArea.addEventListener("pointermove", function (e) {
+    if (dragging) seekTo(ratioAt(e.clientX) * DURATION);
+  });
+  function endDrag(e) {
+    if (!dragging) return;
+    dragging = false;
+    seekArea.classList.remove("is-dragging");
+    seekTo(ratioAt(e.clientX) * DURATION);
+  }
+  seekArea.addEventListener("pointerup", endDrag);
+  seekArea.addEventListener("pointercancel", function () {
+    dragging = false;
+    seekArea.classList.remove("is-dragging");
+  });
+  seekArea.addEventListener("keydown", function (e) {
+    if (e.key === "ArrowRight") { seekTo(now() + 5); e.preventDefault(); }
+    if (e.key === "ArrowLeft")  { seekTo(now() - 5); e.preventDefault(); }
   });
 
   /* Настоящий плеер YouTube. Он же обложка — прятать его нельзя,
@@ -485,7 +613,7 @@
 
   window.onYouTubeIframeAPIReady = function () {
     player = new YT.Player("yt", {
-      videoId: "fRh_vgS2dFE",
+      videoId: "v16qZcBllUU",       /* «Justin Bieber - Topic» — чистая аудиодорожка */
       playerVars: {
         playsinline: 1,
         controls: 0,
@@ -502,7 +630,8 @@
         },
         onStateChange: function (e) {
           if (e.data === 1) { everPlayed = true; if (!playing) start(); }
-          if (e.data === 2 && playing) stop();
+          if (e.data === 2 && playing) { stop(); paint(); }
+          if (e.data === 0) { stop(); paint(); }   /* трек кончился */
         },
         onError: function () {
           player = null;
