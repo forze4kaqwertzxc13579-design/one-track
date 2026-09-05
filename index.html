@@ -100,12 +100,30 @@
     transition: transform .7s cubic-bezier(.2,.8,.2,1), box-shadow .7s ease;
   }
   .art.is-playing { transform: scale(1); }
+
+  /* Клип и есть обложка: 16:9 обрезается по краям до квадрата.
+     Прятать плеер за экран нельзя — мобильные браузеры тогда не отдают звук. */
+  #yt {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    width: 178%;
+    height: 100%;
+    transform: translateX(-50%);
+    border: 0;
+  }
+  .art__word, .art__sub {
+    position: relative;
+    z-index: 2;
+    pointer-events: none;
+    transition: opacity .6s ease;
+  }
   .art__word {
     font-size: clamp(2.4rem, 12vw, 3.4rem);
     font-weight: 800;
     letter-spacing: -0.05em;
     color: #fff;
-    mix-blend-mode: overlay;
+    text-shadow: 0 2px 24px rgba(0,0,0,.45);
   }
   .art__sub {
     position: absolute;
@@ -114,8 +132,10 @@
     font-weight: 600;
     letter-spacing: .28em;
     text-transform: uppercase;
-    color: rgba(255,255,255,.75);
+    color: rgba(255,255,255,.85);
+    text-shadow: 0 1px 12px rgba(0,0,0,.5);
   }
+  .art.is-playing .art__word, .art.is-playing .art__sub { opacity: 0; }
 
   /* ---------- метаданные и прогресс ---------- */
   .meta { display: flex; flex-direction: column; gap: .15rem; text-align: center; }
@@ -190,6 +210,10 @@
     text-decoration: none;
   }
   .chip:active { background: rgba(255,255,255,.12); }
+  .links--urgent .chip {
+    border-color: var(--pink);
+    background: rgba(255,59,107,.16);
+  }
 
   /* ---------- лирика ---------- */
   .lyrics {
@@ -265,10 +289,6 @@
     color: var(--dimmer);
   }
 
-  /* плеер живёт за пределами экрана: скрывать его через display:none нельзя,
-     иначе часть браузеров отказывается отдавать звук */
-  #yt { position: fixed; left: -9999px; top: 0; width: 320px; height: 180px; border: 0; }
-
   @media (prefers-reduced-motion: reduce) {
     * { animation-duration: .001ms !important; transition-duration: .001ms !important; }
     .lyrics { scroll-behavior: auto; }
@@ -288,6 +308,7 @@
   </div>
 
   <div class="art" id="art">
+    <div id="yt"></div>
     <span class="art__word">SORRY</span>
     <span class="art__sub">одно сообщение</span>
   </div>
@@ -363,8 +384,6 @@
   <footer>трек 1 из 1 · собрано вручную</footer>
 </main>
 
-<div id="yt"></div>
-
 <script>
   var DURATION = 200;                 // длина трека в секундах
   var lines = Array.prototype.slice.call(document.querySelectorAll(".lyrics p"));
@@ -424,7 +443,8 @@
     art.classList.add("is-playing");
     icon.setAttribute("d", PAUSE_PATH);
     playBtn.setAttribute("aria-label", "Пауза");
-    hint.textContent = player ? "" : "Звук — по кнопке Spotify или Apple Music выше";
+    if (player) { hint.textContent = ""; }
+    else { noSound("Звук — кнопкой Spotify или Apple Music 👇"); }
     requestAnimationFrame(paint);
   }
 
@@ -440,19 +460,40 @@
     if (playing) {
       if (player && player.pauseVideo) player.pauseVideo();
       stop();
-    } else {
-      if (player && player.playVideo) player.playVideo();
-      start();
+      return;
     }
+    if (player && player.playVideo) {
+      player.playVideo();
+      /* если через две секунды звук так и не пошёл — честно об этом говорим */
+      setTimeout(function () {
+        if (!everPlayed) noSound("Браузер не дал включить звук здесь. Жми Spotify или Apple Music 👇");
+      }, 2000);
+    }
+    start();
   });
 
-  /* Пробуем поднять настоящий плеер YouTube. На платформе артефактов
-     внешний скрипт режется политикой безопасности — тогда работает
-     таймлайн без звука, а трек открывается по ссылке. */
+  /* Настоящий плеер YouTube. Он же обложка — прятать его нельзя,
+     иначе мобильные браузеры не отдают звук.
+     Если платформа режет внешний скрипт или лейбл запретил встраивание,
+     остаётся таймлайн без звука и ссылки на Spotify / Apple Music. */
+  var everPlayed = false;
+
+  function noSound(msg) {
+    hint.textContent = msg;
+    document.querySelector(".links").classList.add("links--urgent");
+  }
+
   window.onYouTubeIframeAPIReady = function () {
     player = new YT.Player("yt", {
       videoId: "fRh_vgS2dFE",
-      playerVars: { playsinline: 1, controls: 0, rel: 0 },
+      playerVars: {
+        playsinline: 1,
+        controls: 0,
+        rel: 0,
+        modestbranding: 1,
+        enablejsapi: 1,
+        origin: location.origin
+      },
       events: {
         onReady: function () {
           var d = player.getDuration && player.getDuration();
@@ -460,14 +501,19 @@
           hint.textContent = "Нажми ▶ — дальше я всё сказал внутри";
         },
         onStateChange: function (e) {
-          if (e.data === 1 && !playing) start();
+          if (e.data === 1) { everPlayed = true; if (!playing) start(); }
           if (e.data === 2 && playing) stop();
+        },
+        onError: function () {
+          player = null;
+          noSound("YouTube не пустил клип внутрь страницы. Включи трек кнопкой ниже 👇");
         }
       }
     });
   };
   var s = document.createElement("script");
   s.src = "https://www.youtube.com/iframe_api";
+  s.onerror = function () { player = null; };
   document.head.appendChild(s);
 
   document.getElementById("yes").addEventListener("click", function () {
