@@ -124,9 +124,34 @@
   }
   #yt iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
 
+  /* фото вместо градиента на обложке; если файла нет — остаётся градиент */
+  .art__photo {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    z-index: 1;
+    opacity: 0;
+    transition: opacity .8s ease;
+  }
+  .art.has-photo .art__photo { opacity: 1; }
+  .art__scrim {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    background: linear-gradient(180deg, rgba(0,0,0,.18) 30%, rgba(0,0,0,.62));
+    opacity: 0;
+    transition: opacity .8s ease;
+    pointer-events: none;
+  }
+  .art.has-photo .art__scrim { opacity: 1; }
+
   /* прямой режим: показываем сам плеер, чтобы по нему можно было ткнуть */
   .art.is-raw #yt { pointer-events: auto; z-index: 3; }
   .art.is-raw .art__cover,
+  .art.is-raw .art__photo,
+  .art.is-raw .art__scrim,
   .art.is-raw .art__word,
   .art.is-raw .art__sub,
   .art.is-raw .eq { opacity: 0; pointer-events: none; }
@@ -356,6 +381,14 @@
     animation: rise .7s cubic-bezier(.2,.8,.2,1) both;
   }
   @keyframes rise { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+  .card__photo {
+    display: none;                 /* показываем только если файл реально загрузился */
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    object-fit: cover;
+    border-radius: 12px;
+  }
+  .card__photo.is-on { display: block; }
   .card h2 { font-size: 1.3rem; }
   .card p { color: var(--dim); }
   .card .kiss { color: var(--pink); font-weight: 600; }
@@ -393,6 +426,9 @@
   <div class="art" id="art">
     <div id="yt"></div>
     <div class="art__cover" aria-hidden="true"></div>
+    <!-- ФОТО 1: файл photo.jpg рядом со страницей -->
+    <img class="art__photo" id="photo" src="photo.jpg" alt="">
+    <div class="art__scrim" aria-hidden="true"></div>
     <span class="art__word">SORRY</span>
     <span class="art__sub">одно сообщение</span>
     <span class="eq" aria-hidden="true"><span></span><span></span><span></span><span></span></span>
@@ -465,6 +501,8 @@
 
   <section id="finale" hidden>
     <div class="card">
+      <!-- ФОТО 2: файл photo2.jpg рядом со страницей -->
+      <img class="card__photo" id="photo2" src="photo2.jpg" alt="">
       <!-- ЗАМЕНИ: финальные слова -->
       <h2>Спасибо. Правда.</h2>
       <p>Обещаю: в следующий раз сначала выслушаю, а потом уже открою рот. И сегодня вечер полностью твой — фильм, еда, место, всё выбираешь ты.</p>
@@ -658,6 +696,15 @@
     if (e.key === "ArrowRight") { seekTo(now() + 5); commitSeek(); e.preventDefault(); }
     if (e.key === "ArrowLeft")  { seekTo(now() - 5); commitSeek(); e.preventDefault(); }
   });
+
+  /* ---- фотографии: показываем только те, что действительно загрузились ---- */
+  var photo = document.getElementById("photo");
+  photo.addEventListener("load", function () { art.classList.add("has-photo"); });
+  photo.addEventListener("error", function () { photo.remove(); });
+
+  var photo2 = document.getElementById("photo2");
+  photo2.addEventListener("load", function () { photo2.classList.add("is-on"); });
+  photo2.addEventListener("error", function () { photo2.remove(); });
 
   /* ---- свой файл: если он лежит рядом, всё управление идёт через него ---- */
   snd.addEventListener("loadedmetadata", function () {
