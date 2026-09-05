@@ -147,6 +147,18 @@
   }
   .art.has-photo .art__scrim { opacity: 1; }
 
+  /* с фотографией надпись уходит в угол, как название на обложке альбома,
+     иначе крупное слово по центру закрывает лица */
+  .art.has-photo .art__word {
+    position: absolute;
+    left: .9rem;
+    bottom: .7rem;
+    font-size: 1.75rem;
+    letter-spacing: -0.03em;
+  }
+  .art.has-photo .art__sub { display: none; }
+  .art.has-photo .eq { right: .9rem; bottom: 1.1rem; }
+
   /* прямой режим: показываем сам плеер, чтобы по нему можно было ткнуть */
   .art.is-raw #yt { pointer-events: auto; z-index: 3; }
   .art.is-raw .art__cover,
@@ -384,8 +396,7 @@
   .card__photo {
     display: none;                 /* показываем только если файл реально загрузился */
     width: 100%;
-    aspect-ratio: 4 / 3;
-    object-fit: cover;
+    height: auto;                  /* без обрезки: фото вертикальное */
     border-radius: 12px;
   }
   .card__photo.is-on { display: block; }
@@ -472,14 +483,14 @@
   <!-- ЗАМЕНИ: строки под свою ситуацию. data-t — секунда, на которой строка загорается -->
   <section class="lyrics" id="lyrics">
     <p data-t="2">Привет.</p>
-    <p data-t="7">Знаю, ты сейчас злишься на меня.</p>
-    <p data-t="13">И правильно делаешь.</p>
+    <p data-t="7">Знаю, ты во мне расстроилась.</p>
+    <p data-t="13">И у тебя есть на это все основания.</p>
     <p data-t="19">Я накосячил.</p>
     <p data-t="25" class="small">И не собираюсь это как-то красиво объяснять.</p>
     <p data-t="32">Я был неправ.</p>
     <p data-t="38">Мне правда жаль.</p>
-    <p data-t="45" class="small">Жаль не потому, что ты обиделась.</p>
-    <p data-t="51" class="small">А потому, что обидел тебя я.</p>
+    <p data-t="45" class="small">Жаль не потому, что ты расстроилась.</p>
+    <p data-t="51" class="small">А потому, что расстроил тебя я.</p>
     <p data-t="58">Это разные вещи.</p>
     <p data-t="65">Ты важнее любого спора.</p>
     <p data-t="72">Важнее того, кто там был прав.</p>
@@ -697,24 +708,33 @@
     if (e.key === "ArrowLeft")  { seekTo(now() - 5); commitSeek(); e.preventDefault(); }
   });
 
-  /* ---- фотографии: показываем только те, что действительно загрузились ---- */
+  /* ---- фотографии: показываем только те, что действительно загрузились.
+         Картинка может успеть загрузиться до того, как мы повесим обработчик,
+         поэтому состояние проверяем ещё и напрямую. ---- */
+  function wirePhoto(el, onLoad) {
+    if (!el) return;
+    el.addEventListener("load", onLoad);
+    el.addEventListener("error", function () { el.remove(); });
+    if (el.complete) {
+      if (el.naturalWidth > 0) { onLoad(); } else { el.remove(); }
+    }
+  }
   var photo = document.getElementById("photo");
-  photo.addEventListener("load", function () { art.classList.add("has-photo"); });
-  photo.addEventListener("error", function () { photo.remove(); });
-
   var photo2 = document.getElementById("photo2");
-  photo2.addEventListener("load", function () { photo2.classList.add("is-on"); });
-  photo2.addEventListener("error", function () { photo2.remove(); });
+  wirePhoto(photo, function () { art.classList.add("has-photo"); });
+  wirePhoto(photo2, function () { photo2.classList.add("is-on"); });
 
   /* ---- свой файл: если он лежит рядом, всё управление идёт через него ---- */
-  snd.addEventListener("loadedmetadata", function () {
+  function audioReady() {
     haveAudio = true;
     if (snd.duration > 0) {
       DURATION = snd.duration;
       document.getElementById("dur").textContent = fmt(snd.duration);
     }
     diag.textContent = "";
-  });
+  }
+  snd.addEventListener("loadedmetadata", audioReady);
+  if (snd.readyState >= 1) audioReady();     /* метаданные могли прийти раньше */
   snd.addEventListener("error", function () {
     haveAudio = false;             // файла нет — остаётся запасной плеер
     diag.textContent = "";
